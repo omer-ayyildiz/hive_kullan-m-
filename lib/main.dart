@@ -1,10 +1,20 @@
-import 'package:sil1/shared_provider.dart';
+// ignore_for_file: use_build_context_synchronously
+
+import 'package:hive_flutter/adapters.dart';
+import 'package:sil1/hive_provider.dart';
+import 'package:sil1/models/check_model.dart';
 import 'package:flutter/material.dart';
 import 'package:sil1/constant.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-void main() => runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  Hive.registerAdapter(CheckModelAdapter());
+  await Hive.openBox<CheckModel>('modelVerisi');
+
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -12,8 +22,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider<SharedProvider>(
-          create: (context) => SharedProvider(),
+        ChangeNotifierProvider<HiveProvider>(
+          create: (context) => HiveProvider(),
         )
       ],
       child: const MaterialApp(
@@ -32,9 +42,8 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  TextEditingController _textEditingController = TextEditingController();
-  SharedPreferences? sharedPreferencs;
-
+  final TextEditingController _textEditingController = TextEditingController();
+  List<CheckModel> _allTask = [];
   @override
   void initState() {
     super.initState();
@@ -42,15 +51,16 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   init() async {
-    sharedPreferencs = await SharedPreferences.getInstance();
-    var data = Provider.of<SharedProvider>(context, listen: false);
-    listem = await data.getData();
+    var data = Provider.of<HiveProvider>(context, listen: false);
+    checkList = await data.getData();
+
     setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    var data = Provider.of<SharedProvider>(context);
+    var hiveData = Provider.of<HiveProvider>(context);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Demo')),
       body: Column(
@@ -60,14 +70,14 @@ class _MyHomePageState extends State<MyHomePage> {
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: ListView.builder(
-                itemCount: listem.length,
+                itemCount: checkList.length,
                 itemBuilder: (context, index) {
                   print(index);
                   return Dismissible(
                     key: UniqueKey(),
                     background: _deleteMethod(),
                     confirmDismiss: (direction) {
-                      return _buildShowDialog(context, index, data);
+                      return _buildShowDialog(context, index, hiveData);
                     },
                     onDismissed: (direction) {},
                     child: Card(
@@ -75,7 +85,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: ListTile(
-                        title: Text(listem[index]),
+                        title: Text(checkList[index].name),
                       ),
                     ),
                   );
@@ -108,24 +118,28 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SizedBox(
-              height: 40,
-              width: 250,
-              child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    if (_textEditingController.text.isNotEmpty) {
-                      data.setData(_textEditingController.text);
-                    }
-                  });
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SizedBox(
+                  height: 40,
+                  width: 250,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (_textEditingController.text.isNotEmpty) {
+                        CheckModel yeniEkle = CheckModel.create(
+                            name: _textEditingController.text);
+                        checkList.add(yeniEkle);
 
-                  print(data.getData());
-                },
-                child: const Text('Ekle'),
+                        hiveData.addData(yeniEkle);
+                      }
+                    },
+                    child: const Text('Ekle'),
+                  ),
+                ),
               ),
-            ),
+            ],
           )
         ],
       ),
@@ -141,13 +155,8 @@ class _MyHomePageState extends State<MyHomePage> {
       padding: const EdgeInsets.all(10),
       alignment: Alignment.centerLeft,
       child: const Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.delete,
-            color: Colors.white,
-            size: 21,
-          ),
           Icon(
             Icons.delete,
             color: Colors.white,
@@ -159,7 +168,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<bool?> _buildShowDialog(
-      BuildContext context, int index, SharedProvider data) async {
+      BuildContext context, int index, HiveProvider data) async {
     return await showDialog(
       context: context,
       builder: (context) {
@@ -174,7 +183,7 @@ class _MyHomePageState extends State<MyHomePage> {
           actions: [
             TextButton(
               onPressed: () {
-                data.removeData(index);
+                //  data.removeData(index);
                 Navigator.pop(context);
               },
               child: const Text('Evet'),
